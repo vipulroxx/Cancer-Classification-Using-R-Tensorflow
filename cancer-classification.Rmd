@@ -1,0 +1,91 @@
+---
+title: " Breast Cancer Wisconsin (Diagnostic) Data Set Visualization"
+author: "Vipul Sharma"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## What is the data?
+
+```
+The data set I used is called Breast Cancer Wisconsin (Diagnostic) Data Set. The
+features are computed from a digitized image of a fine needle aspirate (FNA) of a
+beast mass which describes characteristics of the cell nuclei present in the image.
+```
+
+## How was the data collected?
+
+```
+Data was obtained using Multisurface Method-Tree (MSM-T), a classification method
+which uses linear programming to construct a decision tree.
+```
+
+## Who collected the data?
+
+```
+William H. Wolberg, General Surgery Dept.
+University of Wisconsin, Clinical Sciences Center
+Madison, WI 53792
+wolberg  '@' eagle.surgery.wisc.edu
+```
+
+```
+W. Nick Street, Computer Sciences Dept.
+University of Wisconsin, 1210 West Dayton St., Madison, WI 53706
+Street  **'@'** cs.wisc.edu 608-262-
+```
+
+```
+Olvi L. Mangasarian, Computer Sciences Dept.
+University of Wisconsin, 1210 West Dayton St., Madison, WI 53706
+olvi  **'@'** cs.wisc.edu
+```
+
+
+```{r results='hide', message=FALSE, warning=FALSE, echo=FALSE}
+library(readr)
+library(plotly)
+dataset <- read_csv("data.csv")
+dataset <- dataset[, 1:32]
+```
+
+## Structure
+
+```{r echo=FALSE}
+str(dataset)
+```
+
+## Summary
+```{r echo=FALSE}
+summary(dataset)
+```
+
+## Graph Visualizations
+
+### Mean Graphs
+
+```
+This graph plots means of three real-valued features are computed for each cell nucleus which are:
+- Radius Mean : Mean of distances from center to points on the perimeter
+- Texture Mean : Standard deviation of gray-scale values
+- Perimeter Mean : Mean of the perimeter
+```
+
+```{r echo=FALSE}
+p <- plot_ly(dataset, 
+             x = dataset$perimeter_mean,
+             y = dataset$radius_mean,
+             z = dataset$texture_mean, 
+             marker = list(
+                 color = c(dataset$perimeter_mean, dataset$radius_mean, dataset$texture_mean),
+                 colorscale = c('#965F8A', '#FF7070', '#C61951'), showscale = TRUE)) %>%
+    add_markers() %>%
+    layout(title = 'Perimeter Mean VS Radius Mean Vs Texture Mean',
+           scene = list(
+               xaxis = list(title = 'Perimeter'),
+               yaxis = list(title = 'Radius'),
+               zaxis = list(title = 'Texture')))
+p
+```
