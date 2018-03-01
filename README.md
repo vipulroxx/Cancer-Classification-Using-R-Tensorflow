@@ -115,17 +115,13 @@ The data has (569, 33) as its shape which has exactly 30000 samples.
 ## How did I get the data
 
 ```
-I got the data through this link :
-
-<https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+%28Diagnostic%>
+I got the data through this [link](https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+%28Diagnostic%)
 ```
 
 ## Outline the steps necessary to access the data
 
 ```
-To access the data follow the following url:
-
-<https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+%28Diagnostic%>
+To access the data follow the following [url](https://archive.ics.uci.edu/ml/datasets/Breast+Cancer+Wisconsin+%28Diagnostic%>)
 ```
 
 ## Downloading the data
@@ -133,9 +129,8 @@ To access the data follow the following url:
 ```
 Follow these steps in order to download the data:
 
-- Click on the following link:
-    <https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/
-    breast-cancer-wisconsin.data>
+- Click on the following [link](https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/
+    breast-cancer-wisconsin.data "Breast Cancer Wisconsin Data")
 - Go to ​breast-cancer-wisconsin.data​ and save it (Ctrl + S / Cmd + S).
 ```
 
