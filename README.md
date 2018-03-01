@@ -1,9 +1,9 @@
 # Data Science Project
 
-##### 02/14/2018
-
 #### Vipul Sharma
 
+##### Division of Science and Mathematics
+##### sharm493@morris.umn.edu
 ##### University of Minnesota, Morris
 
 
