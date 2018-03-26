@@ -1,18 +1,43 @@
 ---
-title: " Breast Cancer Wisconsin (Diagnostic) Data Set Visualization"
+title: ' Breast Cancer Wisconsin (Diagnostic) Data Set Visualization'
 author: "Vipul Sharma"
-output: html_document
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+always_allow_html: yes
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE,results='hide', message=FALSE, warning=FALSE, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tensorflow)
+library(shiny)
+library(shinythemes)
+library(readr)
+library(plotly)
+library(mice)
+cancer <- read.csv("breast-cancer-wisconsin.txt", na.strings='?', stringsAsFactors=F, header=F)
+dataset <- read.csv("data.csv", na.strings = '?', stringsAsFactors = F)
 ```
+
+#REMINDER
+
+## Goals
+```
+- Cleaning and making the data tidy for further use.
+- Performing exploratory analysises on variables of the data.
+- Building and comparing various models using tools like Tensorflow and ANOVA tests.
+- Analyzing the models and the results.
+- Finally, predicting if a given tumor is benign or malignant.
+```
+
 ## What is the data?
 
 ```
-The data set I used is called Breast Cancer Wisconsin (Diagnostic) Data Set. The
+The data sets I used is called Breast Cancer Wisconsin (Diagnostic) Data Set. The
 features are computed from a digitized image of a fine needle aspirate (FNA) of a
-beast mass which describes characteristics of the cell nuclei present in the image.
+breast mass which describes characteristics of the cell nuclei present in the image.
 ```
 
 ## How was the data collected?
@@ -43,41 +68,154 @@ University of Wisconsin, 1210 West Dayton St., Madison, WI 53706
 olvi  **'@'** cs.wisc.edu
 ```
 
+# Data description and changes made?
 
-```{r results='hide', message=FALSE, warning=FALSE, echo=FALSE}
-library(readr)
-library(plotly)
-dataset <- read_csv("data.csv")
+```
+- Changing column names to the following:
+    - ID
+    - Clump.Thickness
+    - Uniformity.of.Cell.Size 
+    - Uniformity.of.Cell.Shape
+    - Marginal.Adhesion
+    - Single.Epithelial.Cell.Size
+    - Bare.Nuclei
+    - Bland.Chromatin
+    - Normal.Nucleoli
+    - Mitoses
+    - Class
+
+- Removing the ID proxy column and setting it to null and chaning NA's to '?'.
+```
+
+```{r}
+names(cancer) <- c('ID', 'Clump.Thickness', 'Uniformity.of.Cell.Size', 'Uniformity.of.Cell.Shape', 
+                 'Marginal.Adhesion', 'Single.Epithelial.Cell.Size', 'Bare.Nuclei', 
+                 'Bland.Chromatin', 'Normal.Nucleoli', 'Mitoses', 'Class')
+
+cancer$Class <- as.factor(ifelse(cancer$Class > 3, 'Malignant', 'Benign'))
+cancer$ID <- NULL
+names(cancer)
+```
+
+```
+Taking out the summary, we can see that Bare.nuclei has 16 NA columns. Therefore, next step is to impute the NA values of the Bare.nuclei column such that the statistics of the modified data is closely similar to the original dataset.
+```
+
+```{r}
+cols = c(1,9)
+data = cancer[,cols]
+set.seed(144)
+imputed = complete(mice(data, printFlag = FALSE))
+cancer = cbind(imputed, Class=cancer$Class)
+```
+
+## Summary
+
+```
+Checking the Bare.Nuclei column to see if the NA's are gone or not.
+```
+
+```{r echo=FALSE}
+summary(cancer)
+```
+
+```
+ We can also take out the baseline accuracy which comes down to be 65.52%.
+```
+```{r}
+458/(458 + 241)
+```
+
+## Shape
+
+```{r}
+dim(cancer)
+dim(dataset)
+```
+
+```
+Change the diagnosis field in the dataset and map all M's to 1 and all B's to 0 for training. We will also remnove the last column of the dataset since it is em
+```
+
+```{r}
+dataset$diagnosis[dataset$diagnosis=='M'] <-1
+dataset$diagnosis[dataset$diagnosis=='B'] <-0
+head(dataset$diagnosis, 20)
 dataset <- dataset[, 1:32]
 ```
 
 ## Structure
 
-```{r echo=FALSE}
+```{r}
+str(cancer)
 str(dataset)
 ```
 
-## Summary
-```{r echo=FALSE}
-summary(dataset)
+
+## Inital Observation
+
+```
+Ten real-valued features are computed for each cell nucleus:
+
+a) radius (mean of distances from center to points on the perimeter) 
+b) texture (standard deviation of gray-scale values) 
+c) perimeter 
+d) area 
+e) smoothness (local variation in radius lengths) 
+f) compactness (perimeter^2 / area - 1.0) 
+g) concavity (severity of concave portions of the contour) 
+h) concave points (number of concave portions of the contour) 
+i) symmetry 
+j) fractal dimension ("coastline approximation" - 1)
+
+The mean, standard error and "worst" or largest (mean of the three largest values) of these features were computed for each image, resulting in 30 features. 
+For instance, field 3 is Mean Radius, field 13 is Radius SE, field 23 is Worst Radius.
+
+All feature values are recoded with four significant digits.
+
+Missing attribute values: none
+
+Class distribution: 357 benign, 212 malignant
 ```
 
 ## Graph Visualizations
 
-### Mean Graphs
+## Outliers
 
 ```
-This graph plots means of three real-valued features are computed for each cell nucleus which are:
-- Radius Mean : Mean of distances from center to points on the perimeter
-- Texture Mean : Standard deviation of gray-scale values
-- Perimeter Mean : Mean of the perimeter
+We can take a look at the outliers of the means if we make boxplots for both the datasets. The following plot is in the order of these attributes from the data set:
+- perimeter_mean
+- radius_mean
+- area_mean
+- texture_mean
+- smoothness_mean
+- compactness_mean
+- concavity_mean
+We can see that the area mean has the highest number of outliers so we have to make sure that we deal with this by checking whether the outliers are important enough to change the structure of the data or to remove it if its similar and does not change the data by alot.
 ```
+
+```{r echo=FALSE}
+boxplot(dataset$perimeter_mean,dataset$radius_mean,dataset$area_mean,dataset$texture_mean,dataset$smoothness_mean,dataset$compactness_mean,dataset$concavity_mean, col=c('powderblue',  "#F4A582",'mistyrose', "#FDDBC7", "#D1E5F0", "#92C5DE"))
+```
+
+## Mean Graphs
+
+```
+Graph plots means of three real-valued features are computed for each cell nucleus. 
+Note : Click on the graph if the graph does not show up.
+```
+
+```
+This graph plots the radius mean - mean of distances from center to points on the perimeter, texture - standard deviation of gray-scale values and the perimeter mean.
+```
+
 
 ```{r echo=FALSE}
 p <- plot_ly(dataset, 
              x = dataset$perimeter_mean,
              y = dataset$radius_mean,
-             z = dataset$texture_mean, 
+             z = dataset$texture_mean,
+             
              marker = list(
                  color = c(dataset$perimeter_mean, dataset$radius_mean, dataset$texture_mean),
                  colorscale = c('#965F8A', '#FF7070', '#C61951'), showscale = TRUE)) %>%
@@ -88,4 +226,75 @@ p <- plot_ly(dataset,
                yaxis = list(title = 'Radius'),
                zaxis = list(title = 'Texture')))
 p
+```
+
+```
+From this we can plot the area vs perimeter graph.
+```
+```{r echo=FALSE}
+plot(dataset$area_mean ,type = "l", col =2, xlab = "X Axis", ylab ="Y Axis",font.main = 1, main = 'Perimeter Mean VS Area Mean')
+points(dataset$perimeter_mean,type = "l", col = 3)
+legend("topright", legend=c("Area", "Perimeter"),
+       col=c("red", "green"), lty=1:2, cex=0.8)
+```
+
+```
+This graph plots the indiviual means of smoothness, compactness and concativity variables.
+```
+
+```{r echo=FALSE}
+p <- plot_ly(dataset, 
+             x = dataset$smoothness_mean,
+             y = dataset$compactness_mean,
+             z = dataset$concavity_mean,
+             
+             marker = list(
+                 color = c(dataset$smoothness_mean, dataset$compactness_mean, dataset$concavity_mean),
+                 colorscale = c('#965F8A', '#FF7070', '#C61951'), showscale = TRUE)) %>%
+    add_markers() %>%
+    layout(title = 'Smoothness mean VS Compactness Mean VS Concavity mean',
+           scene = list(
+               xaxis = list(title = 'Smoothness'),
+               yaxis = list(title = 'Compactness'),
+               zaxis = list(title = 'Concavity')))
+p
+```
+
+## Sanity Check
+
+```
+This is a sanity check to test whether Tensorflow is properly installed and running or not.
+The following should script output b"Hello, TensorFlow!"
+```
+
+```{r}
+sess = tf$Session()
+hello <- tf$constant('Hello, TensorFlow!')
+sess$run(hello)
+```
+
+
+## What's next
+
+```
+This project is hosted at:
+[link]https://github.com/vipulroxx/Cancer-Classification-Using-R-Tensorflow
+
+The next steps are:
+
+- Figuring out which neural network to use
+- Make neural network models
+- Training and testing these models using K Fold Evaluation
+- Classifying
+
+- Explanatory analysis : 
+    - Mitosis, Single 
+    - Epithelial Cell Size, 
+    - Normal Nuclei
+    
+- ANOVA Tests
+
+- Correlation Analysis
+
+- Putting all this together as a Shiny Application
 ```
