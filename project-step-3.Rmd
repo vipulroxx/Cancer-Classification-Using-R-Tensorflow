@@ -1,0 +1,201 @@
+---
+title: ' Data Generalization'
+author: "Vipul Sharma"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+always_allow_html: yes
+---
+## Dataset description
+
+```
+- The dataset is compiled by the University of Wisconsin in 1992.
+- Each row of data contains a summary of the cells in a sample. 
+- The summary metrics are: 
+   - mean
+   - standard deviation
+   - worst (or largest)
+- Ten real-valued features are computed for each cell nucleus based on the three summary metrics (except diagnosis - the target variable):
+  - radius (mean of distances from center to points on the perimeter) 
+  - texture (standard deviation of gray-scale values) 
+  - perimeter 
+  - area 
+  - smoothness (local variation in radius lengths) 
+  - compactness (perimeter^2 / area - 1.0) 
+  - concavity (severity of concave portions of the contour) 
+  - concave points (number of concave portions of the contour) 
+  - symmetry 
+  - fractal dimension ("coastline approximation" - 1)
+- In all, we have 569 instances with 32 attributes per instance.
+```
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(tensorflow)
+library(tfestimators)
+library(shiny)
+library(shinythemes)
+library(readr)
+library(plotly)
+library(mice)
+library(keras)
+library(kerasR)
+library(caTools)
+library(corrplot)
+library(corrr)
+library(caret)
+library(gridExtra)
+library(pROC)
+library(matrixStats)
+library(NeuralNetTools)
+library(neuralnet)
+dataset <- read.csv("data.csv", na.strings = '?', stringsAsFactors = F)
+dataset <- dataset[, 1:32]
+```
+
+## Structure and Summary
+
+```{r}
+str(dataset)
+summary(dataset)
+```
+
+## Correlation Analysis
+
+```
+- Summary tells us that the data is imbalanced and there is a lot of correlation between the attributes.
+- Considering only the features for the mean values (10 features), leaving out the standard deviation and worst features. 
+- This will reduce our feature space substantially, making our model more generalizable. 
+- The correlation plot uses clustering to make it easy to see which variables are closely correlated with each other. 
+- The closer each variable is to each other the higher the relationship while the opposite is true for widely spaced variables. 
+- The color of the line represents the direction of the correlation while the line shade and thickness represent the strength of the relationship.
+```
+```{r}
+corr_mat <- cor(dataset[,3:ncol(dataset)])
+network_plot(correlate(corr_mat))
+```
+
+## One Hot Encoding
+```
+We will use the format of binary classificaiton for our target variable.
+```
+```{r}
+prop.table(table(dataset$diagnosis))
+dataset$diagnosis[dataset$diagnosis=='M'] <-1
+dataset$diagnosis[dataset$diagnosis=='B'] <-0
+head(dataset$diagnosis, 20)
+```
+
+## Train and Test Splitting
+```
+The dataset is split into two sets with a split ratio of 0.70.
+```
+```{r}
+library(caTools)
+X <- data.matrix(dataset[3:12])
+y <- dataset$diagnosis
+set.seed(1000)
+split = sample.split(dataset$diagnosis, SplitRatio = 0.70)
+X_train = subset(X, split==TRUE)
+X_test = subset(X, split==FALSE)
+split = sample.split(dataset$diagnosis, SplitRatio = 0.70)
+y_train = subset(y, split==TRUE)
+y_test = subset(y, split==FALSE)
+head(X_train,5)
+head(y_train,20)
+head(X_test,5)
+head(y_test,20)
+```
+
+## Normalize features (zero mean, unit variance)
+```
+We are going to normalize X_train and X_test.
+```
+```{r}
+X_train = (X_train - colMeans(X_train)) / colSds(X_train)
+X_test = (X_test - colMeans(X_test)) / colSds(X_test)
+head(X_train,5)
+head(X_test,5)
+```
+
+## Neural Network Visualization
+```
+- Input layer : 10 nodes
+- Hidden Layer 1: 8 nodes
+- Hidden Layer 2: 6 nodes
+- Hidden Layer 3: 4 nodes
+- Output Layer: 2 nodes
+```
+```{r}
+B <- c(rep(0, 397),1)
+M <- c(0, rep(1, 397))
+set.seed(2)
+NN = neuralnet(B+M ~ radius_mean+texture_mean+perimeter_mean+area_mean+smoothness_mean+compactness_mean+concavity_mean+concave.points_mean+symmetry_mean+fractal_dimension_mean, X_train, hidden = c(8,6,4) , linear.output = TRUE )
+plotnet(NN)
+```
+
+## Adding the hidden layers & hyperparameters
+```
+- Now we will include all the hidden layers by adding specific weights and biases to each layer.
+- Model's Hyperparamters:
+  - learningRate = 0.01
+  - epochs = 10000
+  - trainingIters = 10
+```
+```{r}
+n_inputs = length(X_train[1,])
+hidden_layer_1 = 8
+hidden_layer_2 = 6
+hidden_layer_3 = 4
+n_classes = 2
+
+weights <- list(
+  'hiddenLayer1': tf$Variable(tf$random_normal(shape(n_inputs, hidden_layer_1))),
+  'hiddenLayer2': tf$Variable(tf$random_normal(shape(hidden_layer_1, hidden_layer_2))),
+  'hiddenLayer3': tf$Variable(tf$random_normal(shape(hidden_layer_2, hidden_layer_3))),
+  'outputLayer': tf$Variable(tf$random_normal(shape(hidden_layer_3, n_classes)))
+)
+
+biases <- list(
+    'hiddenLayer1': tf$Variable(tf$random_normal(shape(hidden_layer_1))),
+    'hiddenLayer2': tf$Variable(tf$random_normal(shape(hidden_layer_2))),
+    'hiddenLayer3': tf$Variable(tf$random_normal(shape(hidden_layer_3))),
+    'outputLayer': tf$Variable(tf$random_normal(shape(n_classes)))
+)
+
+X = tf$placeholder(tf$float32, shape(NULL, n_inputs))
+y = tf$placeholder(tf$float32, shape(NULL, 2))
+learningRate = 0.01
+epochs = 10000
+trainingIters = 10
+```
+
+## Building the model (Feed Forward)
+```
+- We will use forward propogation as the basis of the algorithm
+- Training:
+  - At each step of gradient descent, we do forward propagation with the current model parameters to get an output.
+  - At each layer of the network, we compute a matrix multiplication of the output from the previous layer and the weights connecting the previous layer to the current layer.
+  - We will add the bias to the current layer.
+  - An activation funciton like Sigmoid is applied, which converts the weighted result into a value between 0 and 1, indicating the classification at that layer.
+  - We will then use backpropogation to adjust our parameters to minimize loss from that output.
+- Classification:
+  - We will thus be able to classify based on the input the network receives.
+```
+```{r}
+feed_forward<- function(X, weights, biases){
+  hiddenLayer1Output = tf$add(tf$matmul(X, weights['hiddenLayer1']), biases['hiddenLayer1'])
+    hiddenLayer1Activation = tf$nn$sigmoid(hiddenLayer1Output)
+    hiddenLayer2Output = tf$add(tf.matmul(hiddenLayer1Activation, weights['hiddenLayer2']), biases['hiddenLayer2'])
+    hiddenLayer2Activation = tf$nn$sigmoid(hiddenLayer2Output)
+    hiddenLayer3Output = tf$add(tf$matmul(hiddenLayer2Activation, weights['hiddenLayer3']), biases['hiddenLayer3'])
+    hiddenLayer3Activation = tf$nn$sigmoid(hiddenLayer3Output)
+    output = tf$matmul(hiddenLayer3Activation, weights['outputLayer']) + biases['outputLayer']
+    return(output)
+}
+    
+
+prediction = feed_forward(X, weights, biases)
+```
+
