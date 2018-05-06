@@ -50,6 +50,8 @@ library(pROC)
 library(matrixStats)
 library(NeuralNetTools)
 library(neuralnet)
+library(keras)
+library(magrittr)
 dataset <- read.csv("data.csv", na.strings = '?', stringsAsFactors = F)
 dataset <- dataset[, 1:32]
 ```
@@ -93,7 +95,7 @@ The dataset is split into two sets with a split ratio of 0.70.
 ```
 ```{r}
 library(caTools)
-X <- data.matrix(dataset[3:12])
+X <- data.matrix(dataset[3:32])
 y <- dataset$diagnosis
 set.seed(1000)
 split = sample.split(dataset$diagnosis, SplitRatio = 0.70)
@@ -113,65 +115,52 @@ head(y_test,20)
 We are going to normalize X_train and X_test.
 ```
 ```{r}
-X_train = (X_train - colMeans(X_train)) / colSds(X_train)
-X_test = (X_test - colMeans(X_test)) / colSds(X_test)
-head(X_train,5)
-head(X_test,5)
+X_train = scale(X_train)
+X_test = scale(X_test)
+head(X_train,3)
+head(X_test,3)
 ```
 
 ## Neural Network Visualization
 ```
-- Input layer : 10 nodes
-- Hidden Layer 1: 8 nodes
-- Hidden Layer 2: 6 nodes
-- Hidden Layer 3: 4 nodes
+- Hidden Layer 1: 16 nodes
+- Hidden Layer 2: 8 nodes
+- Hidden Layer 3: 6 nodes
 - Output Layer: 2 nodes
 ```
 ```{r}
 B <- c(rep(0, 397),1)
 M <- c(0, rep(1, 397))
 set.seed(2)
-NN = neuralnet(B+M ~ radius_mean+texture_mean+perimeter_mean+area_mean+smoothness_mean+compactness_mean+concavity_mean+concave.points_mean+symmetry_mean+fractal_dimension_mean, X_train, hidden = c(8,6,4) , linear.output = TRUE )
+NN = neuralnet(B+M ~ radius_mean+texture_mean+perimeter_mean+area_mean+smoothness_mean+compactness_mean+concavity_mean+concave.points_mean+symmetry_mean+fractal_dimension_mean+radius_se+texture_se+perimeter_se+area_se+smoothness_se+compactness_se+concavity_se+concave.points_se+symmetry_se+fractal_dimension_se+radius_worst+texture_worst+perimeter_worst+area_worst+smoothness_worst+compactness_worst+concavity_worst+concave.points_worst+symmetry_worst+fractal_dimension_worst, X_train, hidden = c(16,8,6,4) , linear.output = TRUE )
 plotnet(NN)
 ```
 
 ## Adding the hidden layers & hyperparameters
 ```
+- We will use Keras, a package based of R Tensorflow core API.
 - Now we will include all the hidden layers by adding specific weights and biases to each layer.
-- Model's Hyperparamters:
-  - learningRate = 0.01
-  - epochs = 10000
-  - trainingIters = 10
+- We will use a sequential model with hidden layers having RELU function while the output is sigmoid.
+- For compiling the model:
+ - Optimizer used is RMSPROP.
+ - The loss is done by binary crossentropy method whose formula given two distributions over discrete variable x, where q(x) is the estimate for true distribution p(x).
+ - The metric used is accuracy.
 ```
 ```{r}
-n_inputs = length(X_train[1,])
-hidden_layer_1 = 8
-hidden_layer_2 = 6
-hidden_layer_3 = 4
-n_classes = 2
 
-weights <- list(
-  'hiddenLayer1': tf$Variable(tf$random_normal(shape(n_inputs, hidden_layer_1))),
-  'hiddenLayer2': tf$Variable(tf$random_normal(shape(hidden_layer_1, hidden_layer_2))),
-  'hiddenLayer3': tf$Variable(tf$random_normal(shape(hidden_layer_2, hidden_layer_3))),
-  'outputLayer': tf$Variable(tf$random_normal(shape(hidden_layer_3, n_classes)))
+model <- keras_model_sequential() %>% 
+  layer_dense(units = 16, activation = "relu", input_shape = c(30)) %>% 
+  layer_dense(units = 8,  activation = "relu") %>% 
+  layer_dense(units = 6,  activation = "relu") %>%
+  layer_dense(units = 1,  activation = "sigmoid")
+model %>% compile(
+  optimizer = optimizer_rmsprop(lr=0.001),
+  loss = "binary_crossentropy",
+  metrics = c("accuracy")
 )
-
-biases <- list(
-    'hiddenLayer1': tf$Variable(tf$random_normal(shape(hidden_layer_1))),
-    'hiddenLayer2': tf$Variable(tf$random_normal(shape(hidden_layer_2))),
-    'hiddenLayer3': tf$Variable(tf$random_normal(shape(hidden_layer_3))),
-    'outputLayer': tf$Variable(tf$random_normal(shape(n_classes)))
-)
-
-X = tf$placeholder(tf$float32, shape(NULL, n_inputs))
-y = tf$placeholder(tf$float32, shape(NULL, 2))
-learningRate = 0.01
-epochs = 10000
-trainingIters = 10
 ```
 
-## Building the model (Feed Forward)
+## Compiling and plotting the model (Feed Forward)
 ```
 - We will use forward propogation as the basis of the algorithm
 - Training:
@@ -182,20 +171,23 @@ trainingIters = 10
   - We will then use backpropogation to adjust our parameters to minimize loss from that output.
 - Classification:
   - We will thus be able to classify based on the input the network receives.
+- Hyperparamters:
+ - Learning Rate : We will use the default from Keras.
+ - Epochs: 200
+ - Batch size: 1
+- Using Keras gave me a loss of 0.3556 and an accuracy 0.9070.
 ```
 ```{r}
-feed_forward<- function(X, weights, biases){
-  hiddenLayer1Output = tf$add(tf$matmul(X, weights['hiddenLayer1']), biases['hiddenLayer1'])
-    hiddenLayer1Activation = tf$nn$sigmoid(hiddenLayer1Output)
-    hiddenLayer2Output = tf$add(tf.matmul(hiddenLayer1Activation, weights['hiddenLayer2']), biases['hiddenLayer2'])
-    hiddenLayer2Activation = tf$nn$sigmoid(hiddenLayer2Output)
-    hiddenLayer3Output = tf$add(tf$matmul(hiddenLayer2Activation, weights['hiddenLayer3']), biases['hiddenLayer3'])
-    hiddenLayer3Activation = tf$nn$sigmoid(hiddenLayer3Output)
-    output = tf$matmul(hiddenLayer3Activation, weights['outputLayer']) + biases['outputLayer']
-    return(output)
-}
-    
-
-prediction = feed_forward(X, weights, biases)
+breast_model <- model %>% fit(
+  X_train,
+  y_train,
+  epochs = 200,
+  batch_size = 1)
+results <- model %>% evaluate(X_test, y_test)
 ```
 
+##  Loss and Accuracy
+```
+We can thus see from the evaluation test above that we got a nice accuracy of 92.96% and a loss of 0.28%
+```
+![Validation Graph that shows accuracy](./above 91.png)
