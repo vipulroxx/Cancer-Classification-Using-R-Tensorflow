@@ -18,7 +18,7 @@ humanize==0.5.1
 iniparse==0.4
 IPy==0.81
 ipykernel==4.8.1
-ipython==6.2.1
+ipython==7.16.3
 ipython-genutils==0.2.0
 ipywidgets==7.1.1
 isc==1.0
