@@ -13,7 +13,7 @@ entrypoints==0.2.3
 fail2ban==0.9.6
 fros==1.1
 futures==3.2.0
-html5lib==0.9999999
+html5lib==0.99999999
 humanize==0.5.1
 iniparse==0.4
 IPy==0.81
